@@ -5,6 +5,7 @@
  */
 
 const proj4 = require('proj4');
+const https = require('https');
 
 // Custom CRS registry - stores user-defined coordinate systems
 const customCRS = new Map();
@@ -680,6 +681,247 @@ function getEllipsoidInfo(ellipsoid = 'WGS84') {
   };
 }
 
+/**
+ * Query elevation data from Open-Elevation API
+ * API: https://api.open-elevation.com/api/v1/lookup
+ * Free, no API key required
+ *
+ * @param {number} lat - Latitude in degrees
+ * @param {number} lon - Longitude in degrees
+ * @returns {Promise<object>} Elevation data
+ */
+async function getElevation(lat, lon) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Validate coordinates
+      if (typeof lat !== 'number' || typeof lon !== 'number') {
+        resolve({
+          success: false,
+          error: 'Latitude and longitude must be numbers'
+        });
+        return;
+      }
+
+      if (lat < -90 || lat > 90) {
+        resolve({
+          success: false,
+          error: 'Latitude must be between -90 and 90 degrees'
+        });
+        return;
+      }
+
+      if (lon < -180 || lon > 180) {
+        resolve({
+          success: false,
+          error: 'Longitude must be between -180 and 180 degrees'
+        });
+        return;
+      }
+
+      // Prepare request data
+      const postData = JSON.stringify({
+        locations: [
+          { latitude: lat, longitude: lon }
+        ]
+      });
+
+      // API options
+      const options = {
+        hostname: 'api.open-elevation.com',
+        port: 443,
+        path: '/api/v1/lookup',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'Accept': 'application/json'
+        }
+      };
+
+      // Make HTTPS request
+      const req = https.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            if (res.statusCode !== 200) {
+              resolve({
+                success: false,
+                error: `API returned status ${res.statusCode}: ${data}`
+              });
+              return;
+            }
+
+            const jsonResponse = JSON.parse(data);
+
+            if (jsonResponse.results && jsonResponse.results.length > 0) {
+              const result = jsonResponse.results[0];
+              resolve({
+                success: true,
+                latitude: result.latitude,
+                longitude: result.longitude,
+                elevation: result.elevation,
+                units: 'meters',
+                input: { lat, lon },
+                output: { elevation: result.elevation }
+              });
+            } else {
+              resolve({
+                success: false,
+                error: 'No elevation data found for the given location'
+              });
+            }
+          } catch (error) {
+            resolve({
+              success: false,
+              error: `Failed to parse API response: ${error.message}`
+            });
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        resolve({
+          success: false,
+          error: `API request failed: ${error.message}`
+        });
+      });
+
+      // Set timeout
+      req.setTimeout(10000, () => {
+        req.destroy();
+        resolve({
+          success: false,
+          error: 'Request timeout (10 seconds)'
+        });
+      });
+
+      // Send request
+      req.write(postData);
+      req.end();
+    } catch (error) {
+      resolve({
+        success: false,
+        error: `Elevation query failed: ${error.message}`
+      });
+    }
+  });
+}
+
+/**
+ * Query elevation for multiple locations
+ *
+ * @param {Array} locations - Array of {lat, lon} or [[lat, lon], ...]
+ * @returns {Promise<object>} Batch elevation data
+ */
+async function getElevationBatch(locations) {
+  try {
+    // Convert to array of objects
+    const coords = locations.map((loc, index) => {
+      if (Array.isArray(loc)) {
+        return { index, lat: loc[0], lon: loc[1] };
+      } else if (typeof loc === 'object') {
+        return { index, lat: loc.lat, lon: loc.lon };
+      }
+      throw new Error(`Invalid location at index ${index}`);
+    });
+
+    // Prepare request data (batch up to 100 locations)
+    const postData = JSON.stringify({
+      locations: coords.map(c => ({ latitude: c.lat, longitude: c.lon }))
+    });
+
+    // API options
+    const options = {
+      hostname: 'api.open-elevation.com',
+      port: 443,
+      path: '/api/v1/lookup',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Accept': 'application/json'
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          try {
+            if (res.statusCode !== 200) {
+              resolve({
+                success: false,
+                error: `API returned status ${res.statusCode}`
+              });
+              return;
+            }
+
+            const jsonResponse = JSON.parse(data);
+
+            if (jsonResponse.results && jsonResponse.results.length > 0) {
+              const results = jsonResponse.results.map((r, i) => ({
+                index: coords[i].index,
+                latitude: r.latitude,
+                longitude: r.longitude,
+                elevation: r.elevation
+              }));
+
+              resolve({
+                success: true,
+                count: results.length,
+                results: results
+              });
+            } else {
+              resolve({
+                success: false,
+                error: 'No elevation data found'
+              });
+            }
+          } catch (error) {
+            resolve({
+              success: false,
+              error: `Failed to parse response: ${error.message}`
+            });
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        resolve({
+          success: false,
+          error: `Request failed: ${error.message}`
+        });
+      });
+
+      req.setTimeout(15000, () => {
+        req.destroy();
+        resolve({
+          success: false,
+          error: 'Request timeout (15 seconds)'
+        });
+      });
+
+      req.write(postData);
+      req.end();
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: `Batch elevation query failed: ${error.message}`
+    };
+  }
+}
+
 // Export all functions
 module.exports = {
   defineCRS,
@@ -699,6 +941,9 @@ module.exports = {
   batchBlhToXYZ,
   batchXyzToBLH,
   getEllipsoidInfo,
+  // Elevation query functions
+  getElevation,
+  getElevationBatch,
   // Utility functions
   degToRad,
   radToDeg,

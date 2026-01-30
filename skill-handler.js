@@ -17,7 +17,9 @@ const {
   xyzToBLH,
   batchBlhToXYZ,
   batchXyzToBLH,
-  getEllipsoidInfo
+  getEllipsoidInfo,
+  getElevation,
+  getElevationBatch
 } = require('./index');
 
 /**
@@ -151,8 +153,26 @@ async function handleCommand(command, args) {
         break;
       }
 
+      case 'elevation':
+      case 'get-elevation': {
+        const { lat, lon } = args;
+        result.data = await getElevation(parseFloat(lat), parseFloat(lon));
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
+      case 'elevation-batch':
+      case 'batch-elevation': {
+        const { locations } = args;
+        result.data = await getElevationBatch(locations);
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
       default:
-        result.error = `Unknown command: ${command}. Available commands: transform, transform-china, batch-transform, list-crs, define-crs, get-proj4-def, inverse-transform, blh-to-xyz, xyz-to-blh, ellipsoid-info`;
+        result.error = `Unknown command: ${command}. Available commands: transform, transform-china, batch-transform, list-crs, define-crs, get-proj4-def, inverse-transform, blh-to-xyz, xyz-to-blh, ellipsoid-info, elevation`;
     }
   } catch (error) {
     result.error = error.message;
@@ -225,7 +245,9 @@ module.exports = {
       { name: 'xyz-to-blh', description: 'Convert ECEF XYZ to BLH (lat,lon,height)' },
       { name: 'batch-blh-to-xyz', description: 'Batch convert BLH to ECEF XYZ' },
       { name: 'batch-xyz-to-blh', description: 'Batch convert ECEF XYZ to BLH' },
-      { name: 'ellipsoid-info', description: 'Get ellipsoid parameters' }
+      { name: 'ellipsoid-info', description: 'Get ellipsoid parameters' },
+      { name: 'elevation', description: 'Query terrain elevation (Open-Elevation API)' },
+      { name: 'elevation-batch', description: 'Batch query terrain elevation' }
     ];
   },
 

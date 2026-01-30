@@ -18,6 +18,8 @@ const {
   batchBlhToXYZ,
   batchXyzToBLH,
   getEllipsoidInfo,
+  getElevation,
+  getElevationBatch,
   PREDEFINED_CRS
 } = require('./index');
 
@@ -85,6 +87,7 @@ ${colors.bright}Available Commands:${colors.reset}
   ${colors.green}china <from> <to> <coords>${colors.reset}     Transform Chinese coordinates (WGS84/GCJ02/BD09)
   ${colors.green}blh-to-xyz <lat> <lon> [height]${colors.reset} Convert BLH to ECEF XYZ
   ${colors.green}xyz-to-blh <X> <Y> <Z>${colors.reset}         Convert ECEF XYZ to BLH
+  ${colors.green}elevation <lat> <lon>${colors.reset}          Query terrain elevation (uses Open-Elevation API)
   ${colors.green}ellipsoid [name]${colors.reset}               Show ellipsoid information
   ${colors.green}examples${colors.reset}                       Show usage examples
   ${colors.green}help${colors.reset}                           Show this help message
@@ -111,6 +114,7 @@ ${colors.bright}Coordinate Format:${colors.reset}
 ${colors.bright}Examples:${colors.reset}
   node cli.js transform EPSG:4326 EPSG:3857 "116.404,39.915"
   node cli.js china WGS84 GCJ02 "116.404,39.915"
+  node cli.js elevation 39.915 116.404
   node cli.js blh-to-xyz 39.915 116.404 100
   node cli.js xyz-to-blh -2185238.6 4384248.9 4076894.5
   node cli.js list
@@ -135,41 +139,48 @@ ${colors.bright}2. Chinese Coordinate System Conversion${colors.reset}
 
    Result: [116.410, 39.920]
 
-${colors.bright}3. BLH to ECEF XYZ Conversion${colors.reset}
+${colors.bright}3. Query Terrain Elevation${colors.reset}
+   Get terrain elevation for a location (uses Open-Elevation API):
+
+   ${colors.cyan}node cli.js elevation 39.915 116.404${colors.reset}
+
+   Result: elevation=52.5m (Beijing area)
+
+${colors.bright}4. BLH to ECEF XYZ Conversion${colors.reset}
    Convert geodetic coordinates to Earth-Centered Earth-Fixed:
 
    ${colors.cyan}node cli.js blh-to-xyz 39.915 116.404 100${colors.reset}
 
    Result: X=-2185238.6, Y=4384248.9, Z=4076894.5
 
-${colors.bright}4. ECEF XYZ to BLH Conversion${colors.reset}
+${colors.bright}5. ECEF XYZ to BLH Conversion${colors.reset}
    Convert Earth-Centered Earth-Fixed to geodetic coordinates:
 
    ${colors.cyan}node cli.js xyz-to-blh -2185238.6 4384248.9 4076894.5${colors.reset}
 
    Result: lat=39.915, lon=116.404, height=100.0
 
-${colors.bright}5. Batch Transform Multiple Coordinates${colors.reset}
+${colors.bright}6. Batch Transform Multiple Coordinates${colors.reset}
    Transform multiple Beijing locations:
 
    ${colors.cyan}node cli.js batch EPSG:4326 EPSG:3857 "116.404,39.915;121.473,31.230"${colors.reset}
 
-${colors.bright}6. Define Custom CRS${colors.reset}
+${colors.bright}7. Define Custom CRS${colors.reset}
    Define a custom projection for a local coordinate system:
 
    ${colors.cyan}node cli.js define "LOCAL" "+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs"${colors.reset}
 
-${colors.bright}7. Get CRS Information${colors.reset}
+${colors.bright}8. Get CRS Information${colors.reset}
    View the definition of a coordinate system:
 
    ${colors.cyan}node cli.js info EPSG:4326${colors.reset}
 
-${colors.bright}8. List All Available CRS${colors.reset}
+${colors.bright}9. List All Available CRS${colors.reset}
    Show all predefined coordinate systems:
 
    ${colors.cyan}node cli.js list${colors.reset}
 
-${colors.bright}9. Show Ellipsoid Information${colors.reset}
+${colors.bright}10. Show Ellipsoid Information${colors.reset}
    Display WGS84 ellipsoid parameters:
 
    ${colors.cyan}node cli.js ellipsoid WGS84${colors.reset}
@@ -182,6 +193,7 @@ ${colors.bright}Common Use Cases:${colors.reset}
   • Web Map to GPS:      EPSG:3857 → EPSG:4326
   • BLH to ECEF XYZ:     lat,lon,height → X,Y,Z
   • ECEF XYZ to BLH:     X,Y,Z → lat,lon,height
+  • Query Elevation:     lat,lon → elevation (meters)
 `);
 }
 
@@ -383,6 +395,27 @@ function main() {
       } else {
         printError(result.error);
       }
+      break;
+    }
+
+    case 'elevation': {
+      const lat = parseFloat(args[1]);
+      const lon = parseFloat(args[2]);
+      if (isNaN(lat) || isNaN(lon)) {
+        printError('Usage: node cli.js elevation <lat> <lon>');
+        printInfo('Example: node cli.js elevation 39.915 116.404');
+        return;
+      }
+      printInfo(`Querying elevation for lat=${lat}, lon=${lon}...`);
+      getElevation(lat, lon).then(result => {
+        if (result.success) {
+          printSuccess('Elevation query completed');
+          console.log(`  Location: ${colors.cyan}lat=${result.latitude.toFixed(6)}°, lon=${result.longitude.toFixed(6)}°${colors.reset}`);
+          console.log(`  Elevation: ${colors.green}${result.elevation.toFixed(2)} meters${colors.reset} ${colors.yellow}(above sea level)${colors.reset}`);
+        } else {
+          printError(result.error);
+        }
+      });
       break;
     }
 

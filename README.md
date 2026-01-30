@@ -1,6 +1,6 @@
 # Proj4 Coordinate Transformation Skill
 
-一个基于 Proj4js 的坐标系定义和转换 Skill，支持多种坐标系之间的相互转换，包括中国常用的坐标系（WGS84、GCJ-02、BD-09），以及地心直角坐标系（ECEF XYZ）与大地坐标系（BLH）的相互转换。
+一个基于 Proj4js 的坐标系定义和转换 Skill，支持多种坐标系之间的相互转换，包括中国常用的坐标系（WGS84、GCJ-02、BD-09），以及地心直角坐标系（ECEF XYZ）与大地坐标系（BLH）的相互转换。同时支持查询全球地形高程数据。
 
 ## 功能特性
 
@@ -21,6 +21,12 @@
   - XYZ (地心直角坐标) → BLH (经纬高)
   - 基于 WGS84 椭球模型
   - 支持批量转换
+
+- 🏔️ **地形高程查询**
+  - 输入经纬度查询地形海拔高度
+  - 使用 Open-Elevation API (免费，无需API key)
+  - 全球范围覆盖
+  - 支持批量查询
 
 - 🔧 **自定义坐标系**
   - 支持定义自定义坐标系
@@ -90,6 +96,15 @@ node cli.js xyz-to-blh -2178505.3710 4387801.4334 4070815.4087
 node cli.js ellipsoid WGS84
 ```
 
+#### 地形高程查询
+
+查询指定经纬度的地形海拔高度:
+
+```bash
+node cli.js elevation 39.915 116.404
+# 输出: Elevation: 55.00 meters (above sea level)
+```
+
 #### 批量转换
 
 ```bash
@@ -124,6 +139,7 @@ const {
   blhToXYZ,
   xyzToBLH,
   batchBlhToXYZ,
+  getElevation,
   defineCRS,
   listCRS
 } = require('./index');
@@ -146,14 +162,21 @@ const result4 = xyzToBLH(result3.X, result3.Y, result3.Z);
 console.log(`lat=${result4.lat}, lon=${result4.lon}, height=${result4.height}`);
 // lat=39.915, lon=116.404, height=100
 
+// 查询地形高程 - 异步函数
+async function queryElevation() {
+  const result5 = await getElevation(39.915, 116.404);
+  console.log(`Elevation: ${result5.elevation}m`);
+}
+queryElevation(); // Elevation: 55m
+
 // 批量 BLH 转 XYZ
 const coordinates = [
   [39.915, 116.404, 100],
   [31.230, 121.473, 50],
   [23.129, 113.264, 0]
 ];
-const result5 = batchBlhToXYZ(coordinates);
-console.log(result5.results);
+const result6 = batchBlhToXYZ(coordinates);
+console.log(result6.results);
 
 // 定义自定义坐标系
 defineCRS('LOCAL', '+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs');
@@ -161,6 +184,94 @@ defineCRS('LOCAL', '+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs');
 // 列出所有可用坐标系
 const crsList = listCRS();
 console.log(crsList.predefined);
+```
+
+### 3. 作为 Claude Code Skill 使用
+
+此项目可以作为 Claude Code 的 Skill 使用。
+
+#### 安装 Skill
+
+1. 克隆此仓库到本地：
+```bash
+git clone https://github.com/jsy96/proj4-Skill.git
+cd proj4-Skill
+npm install
+```
+
+2. 在 Claude Code 中配置 skill 路径
+
+#### 在 Claude Code 中使用
+
+在对话中直接使用 skill 命令：
+
+```
+# 坐标转换
+请使用 proj4 skill 将坐标 [116.404, 39.915] 从 WGS84 转换为 Web Mercator
+
+# 中国坐标转换
+请使用 proj4 skill 将 GPS 坐标 [116.404, 39.915] 转换为高德地图坐标
+
+# 地心直角坐标转换
+请使用 proj4 skill 将大地坐标 (纬度=39.915, 经度=116.404, 高度=100) 转换为地心直角坐标 XYZ
+
+# 地形高程查询
+请使用 proj4 skill 查询纬度 39.915、经度 116.404 处的地形海拔高度
+
+# 列出所有坐标系
+请使用 proj4 skill 列出所有可用的坐标系
+
+# 批量转换
+请使用 proj4 skill 批量转换以下坐标: [[116.404, 39.915], [121.473, 31.230]]
+```
+
+#### 可用的 Skill 命令
+
+- `transform` - 坐标系转换
+- `transform-china` - 中国坐标系转换 (WGS84/GCJ02/BD09)
+- `blh-to-xyz` - 大地坐标转地心直角坐标
+- `xyz-to-blh` - 地心直角坐标转大地坐标
+- `batch-blh-to-xyz` - 批量大地坐标转地心直角坐标
+- `batch-xyz-to-blh` - 批量地心直角坐标转大地坐标
+- `elevation` - 查询地形海拔高度
+- `batch-transform` - 批量坐标转换
+- `list-crs` - 列出所有坐标系
+- `define-crs` - 定义自定义坐标系
+- `get-proj4-def` - 获取坐标系定义
+- `inverse-transform` - 获取逆向转换信息
+- `ellipsoid-info` - 获取椭球参数
+
+#### 编程方式调用
+
+```javascript
+const skill = require('./skill-handler');
+
+// 转换坐标
+const result = await skill.execute('transform', {
+  from: 'EPSG:4326',
+  to: 'EPSG:3857',
+  coordinates: [116.404, 39.915]
+});
+console.log(result);
+
+// BLH 转 XYZ
+const result2 = await skill.execute('blh-to-xyz', {
+  lat: 39.915,
+  lon: 116.404,
+  height: 100
+});
+console.log(result2);
+
+// 查询高程
+const result3 = await skill.execute('elevation', {
+  lat: 39.915,
+  lon: 116.404
+});
+console.log(result3);
+
+// 获取可用命令
+const commands = skill.getCommands();
+console.log(commands);
 ```
 
 ### 3. 作为 Claude Code Skill 使用
