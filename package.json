@@ -1,0 +1,31 @@
+{
+  "name": "useproj4",
+  "version": "1.0.0",
+  "description": "A skill for defining coordinate reference systems and transforming coordinates between different coordinate systems using Proj4js",
+  "main": "index.js",
+  "bin": {
+    "proj4-skill": "./cli.js"
+  },
+  "scripts": {
+    "test": "node test.js",
+    "cli": "node cli.js"
+  },
+  "keywords": [
+    "proj4",
+    "coordinate",
+    "transformation",
+    "crs",
+    "gis",
+    "wgs84",
+    "gcj02",
+    "bd09",
+    "china",
+    "skill"
+  ],
+  "author": "Claude Code",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "proj4": "^2.20.2"
+  }
+}

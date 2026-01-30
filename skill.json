@@ -1,0 +1,102 @@
+{
+  "name": "proj4-coordinate-transform",
+  "description": "A skill for defining coordinate reference systems and transforming coordinates between different coordinate systems using Proj4js",
+  "version": "1.0.0",
+  "author": "Claude Code",
+  "license": "MIT",
+  "main": "index.js",
+  "commands": [
+    {
+      "name": "define-crs",
+      "description": "Define a custom Coordinate Reference System (CRS)",
+      "parameters": {
+        "name": {
+          "type": "string",
+          "description": "Name/identifier for the CRS",
+          "required": true
+        },
+        "proj4def": {
+          "type": "string",
+          "description": "Proj4 definition string (e.g., '+proj=longlat +datum=WGS84 +no_defs')",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "list-crs",
+      "description": "List all available predefined coordinate reference systems"
+    },
+    {
+      "name": "transform",
+      "description": "Transform coordinates from one CRS to another",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "description": "Source CRS (e.g., 'EPSG:4326', 'WGS84', or custom name)",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "description": "Target CRS (e.g., 'EPSG:3857', 'GCJ02', or custom name)",
+          "required": true
+        },
+        "coordinates": {
+          "type": "array",
+          "description": "Coordinates to transform [longitude, latitude] or [x, y]",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "batch-transform",
+      "description": "Transform multiple coordinates from one CRS to another",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "description": "Source CRS",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "description": "Target CRS",
+          "required": true
+        },
+        "coordinates": {
+          "type": "array",
+          "description": "Array of coordinates [[x1, y1], [x2, y2], ...]",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "inverse-transform",
+      "description": "Get the inverse transformation between two CRS",
+      "parameters": {
+        "from": {
+          "type": "string",
+          "description": "Source CRS",
+          "required": true
+        },
+        "to": {
+          "type": "string",
+          "description": "Target CRS",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "get-proj4-def",
+      "description": "Get the Proj4 definition string for a given CRS",
+      "parameters": {
+        "crs": {
+          "type": "string",
+          "description": "CRS identifier (e.g., 'EPSG:4326')",
+          "required": true
+        }
+      }
+    }
+  ],
+  "dependencies": {
+    "proj4": "^2.11.0"
+  }
+}
