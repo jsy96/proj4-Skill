@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投影坐标转换工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .panel-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+            color: #4fc3f7;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: #b0bec5;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            font-size: 1rem;
+        }
+
+        select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        select:focus, input:focus {
+            outline: 2px solid #4fc3f7;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .coord-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .coord-inputs.three {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+            color: #1a1a2e;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(79,195,247,0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #66bb6a 0%, #43a047 100%);
+            color: #fff;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(76,175,80,0.4);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
+            color: #1a1a2e;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255,167,38,0.4);
+        }
+
+        .result-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            min-height: 60px;
+        }
+
+        .result-label {
+            font-size: 0.85rem;
+            color: #4fc3f7;
+            margin-bottom: 5px;
+        }
+
+        .result-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .conversion-type {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .conversion-type button {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            color: #b0bec5;
+        }
+
+        .conversion-type button.active {
+            background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+            color: #1a1a2e;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .ecef-panel {
+            margin-top: 20px;
+        }
+
+        .info-badge {
+            display: inline-block;
+            background: rgba(79,195,247,0.2);
+            color: #4fc3f7;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌍 投影坐标转换工具</h1>
+
+        <div class="main-grid">
+            <!-- 源坐标系面板 -->
+            <div class="panel">
+                <h2 class="panel-title">源坐标系</h2>
+
+                <div class="conversion-type">
+                    <button id="srcPresetBtn" class="active" onclick="toggleSrcMode('preset')">预设投影</button>
+                    <button id="srcCustomBtn" onclick="toggleSrcMode('custom')">自定义</button>
+                </div>
+
+                <div id="srcPresetArea">
+                    <div class="form-group">
+                        <label>选择投影类型</label>
+                        <select id="srcProjection" onchange="updateSrcInfo()">
+                            <option value="EPSG:4326">EPSG:4326 - WGS84 经纬度坐标</option>
+                            <option value="EPSG:3857">EPSG:3857 - Web Mercator (谷歌地图)</option>
+                            <option value="EPSG:4490">EPSG:4490 - CGCS2000 经纬度</option>
+                            <option value="EPSG:4544">EPSG:4544 - CGCS2000 / 3-degree Gauss-Kruger CM 120E</option>
+                            <option value="EPSG:4545">EPSG:4545 - CGCS2000 / 3-degree Gauss-Kruger CM 121E</option>
+                            <option value="EPSG:4546">EPSG:4546 - CGCS2000 / 3-degree Gauss-Kruger CM 122E</option>
+                            <option value="EPSG:4547">EPSG:4547 - CGCS2000 / 3-degree Gauss-Kruger CM 123E</option>
+                            <option value="EPSG:4214">EPSG:4214 - Beijing 1954</option>
+                            <option value="EPSG:4480">EPSG:4480 - Xian 1980</option>
+                            <option value="EPSG:2437">EPSG:2437 - Beijing 1954 / 3-degree GK CM 120E</option>
+                            <option value="EPSG:2438">EPSG:2438 - Beijing 1954 / 3-degree GK CM 121E</option>
+                            <option value="EPSG:2385">EPSG:2385 - Xian 1980 / 3-degree GK CM 120E</option>
+                            <option value="EPSG:2386">EPSG:2386 - Xian 1980 / 3-degree GK CM 121E</option>
+                            <option value="EPSG:2154">EPSG:2154 - Lambert 93 (法国)</option>
+                            <option value="EPSG:32650">EPSG:32650 - UTM Zone 50N</option>
+                            <option value="EPSG:32651">EPSG:32651 - UTM Zone 51N</option>
+                            <option value="EPSG:32652">EPSG:32652 - UTM Zone 52N</option>
+                            <option value="EPSG:3395">EPSG:3395 - World Mercator</option>
+                            <option value="EPSG:2154">EPSG:2154 - Lambert Conformal Conic</option>
+                            <option value="EPSG:3035">EPSG:3035 - LAEA Europe</option>
+                        </select>
+                        <div id="srcInfo" class="info-badge">WGS84 经纬度: (经度, 纬度)</div>
+                    </div>
+                </div>
+
+                <div id="srcCustomArea" class="hidden">
+                    <div class="form-group">
+                        <label>投影名称 (EPSG代码或自定义名称)</label>
+                        <input type="text" id="srcCustomName" placeholder="例如: EPSG:XXXX 或 my-proj">
+                    </div>
+                    <div class="form-group">
+                        <label>Proj4 定义参数</label>
+                        <textarea id="srcCustomDef" placeholder="+proj=longlat +datum=WGS84 +no_defs"></textarea>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>输入坐标值</label>
+                    <div id="srcCoordInputs" class="coord-inputs">
+                        <input type="number" id="srcX" placeholder="经度 / X" step="any">
+                        <input type="number" id="srcY" placeholder="纬度 / Y" step="any">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 目标坐标系面板 -->
+            <div class="panel">
+                <h2 class="panel-title">目标坐标系</h2>
+
+                <div class="conversion-type">
+                    <button id="dstPresetBtn" class="active" onclick="toggleDstMode('preset')">预设投影</button>
+                    <button id="dstCustomBtn" onclick="toggleDstMode('custom')">自定义</button>
+                </div>
+
+                <div id="dstPresetArea">
+                    <div class="form-group">
+                        <label>选择投影类型</label>
+                        <select id="dstProjection" onchange="updateDstInfo()">
+                            <option value="EPSG:3857">EPSG:3857 - Web Mercator (谷歌地图)</option>
+                            <option value="EPSG:4326">EPSG:4326 - WGS84 经纬度坐标</option>
+                            <option value="EPSG:4490">EPSG:4490 - CGCS2000 经纬度</option>
+                            <option value="EPSG:4544">EPSG:4544 - CGCS2000 / 3-degree Gauss-Kruger CM 120E</option>
+                            <option value="EPSG:4545">EPSG:4545 - CGCS2000 / 3-degree Gauss-Kruger CM 121E</option>
+                            <option value="EPSG:4546">EPSG:4546 - CGCS2000 / 3-degree Gauss-Kruger CM 122E</option>
+                            <option value="EPSG:4547">EPSG:4547 - CGCS2000 / 3-degree Gauss-Kruger CM 123E</option>
+                            <option value="EPSG:4214">EPSG:4214 - Beijing 1954</option>
+                            <option value="EPSG:4480">EPSG:4480 - Xian 1980</option>
+                            <option value="EPSG:2437">EPSG:2437 - Beijing 1954 / 3-degree GK CM 120E</option>
+                            <option value="EPSG:2438">EPSG:2438 - Beijing 1954 / 3-degree GK CM 121E</option>
+                            <option value="EPSG:2385">EPSG:2385 - Xian 1980 / 3-degree GK CM 120E</option>
+                            <option value="EPSG:2386">EPSG:2386 - Xian 1980 / 3-degree GK CM 121E</option>
+                            <option value="EPSG:2154">EPSG:2154 - Lambert 93 (法国)</option>
+                            <option value="EPSG:32650">EPSG:32650 - UTM Zone 50N</option>
+                            <option value="EPSG:32651">EPSG:32651 - UTM Zone 51N</option>
+                            <option value="EPSG:32652">EPSG:32652 - UTM Zone 52N</option>
+                            <option value="EPSG:3395">EPSG:3395 - World Mercator</option>
+                            <option value="EPSG:3035">EPSG:3035 - LAEA Europe</option>
+                        </select>
+                        <div id="dstInfo" class="info-badge">Web Mercator: (X, Y) 米</div>
+                    </div>
+                </div>
+
+                <div id="dstCustomArea" class="hidden">
+                    <div class="form-group">
+                        <label>投影名称 (EPSG代码或自定义名称)</label>
+                        <input type="text" id="dstCustomName" placeholder="例如: EPSG:XXXX 或 my-proj">
+                    </div>
+                    <div class="form-group">
+                        <label>Proj4 定义参数</label>
+                        <textarea id="dstCustomDef" placeholder="+proj=merc +datum=WGS84 +no_defs"></textarea>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-primary" onclick="convertCoordinate()">转换坐标</button>
+                    <button class="btn-warning" onclick="swapProjections()">交换</button>
+                </div>
+
+                <div class="result-box">
+                    <div class="result-label">转换结果</div>
+                    <div id="resultValue" class="result-value">请输入坐标值后点击转换</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 地心直角坐标面板 -->
+        <div class="panel ecef-panel">
+            <h2 class="panel-title">地心直角坐标 (ECEF - Earth-Centered Earth-Fixed)</h2>
+            <p style="color: #b0bec5; margin-bottom: 15px; font-size: 0.9rem;">
+                地心直角坐标系：以地球质心为原点，X轴指向本初子午线与赤道交点，Z轴指向北极，Y轴与X、Z轴构成右手坐标系。
+            </p>
+
+            <div class="main-grid">
+                <div>
+                    <div class="form-group">
+                        <label>输入经纬度 (度) 和 高程 (米)</label>
+                        <div class="coord-inputs three">
+                            <input type="number" id="ecefLon" placeholder="经度" step="any" value="116.3912">
+                            <input type="number" id="ecefLat" placeholder="纬度" step="any" value="39.9075">
+                            <input type="number" id="ecefHeight" placeholder="高程" step="any" value="50">
+                        </div>
+                    </div>
+                    <button class="btn-primary" onclick="convertToECEF()" style="width: 100%;">经纬度 → 地心坐标 (正算)</button>
+
+                    <div class="result-box">
+                        <div class="result-label">地心坐标 (X, Y, Z) 米</div>
+                        <div id="ecefResult" class="result-value">-</div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="form-group">
+                        <label>输入地心坐标 (X, Y, Z) 米</label>
+                        <div class="coord-inputs three">
+                            <input type="number" id="xyzX" placeholder="X" step="any">
+                            <input type="number" id="xyzY" placeholder="Y" step="any">
+                            <input type="number" id="xyzZ" placeholder="Z" step="any">
+                        </div>
+                    </div>
+                    <button class="btn-secondary" onclick="convertFromECEF()" style="width: 100%;">地心坐标 → 经纬度 (反算)</button>
+
+                    <div class="result-box">
+                        <div class="result-label">经纬度 (经度, 纬度) 和 高程 (米)</div>
+                        <div id="llhResult" class="result-value">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 转换历史 -->
+        <div class="panel" style="margin-top: 20px;">
+            <h2 class="panel-title">转换历史</h2>
+            <div id="history" class="result-box" style="max-height: 200px; overflow-y: auto;">
+                <div class="result-value" style="font-size: 0.9rem; color: #b0bec5;">暂无转换记录</div>
+            </div>
+            <button class="btn-warning" onclick="clearHistory()" style="margin-top: 10px;">清空历史</button>
+        </div>
+    </div>
+
+    <script>
+        // WGS84 椭球参数
+        const WGS84_A = 6378137.0;  // 长半轴
+        const WGS84_F = 1 / 298.257223563;  // 扁率
+        const WGS84_E2 = 2 * WGS84_F - WGS84_F * WGS84_F;  // 第一偏心率平方
+
+        // 注册常用投影定义
+        function registerProjections() {
+            // CGCS2000 (中国大地坐标系2000)
+            proj4.defs('EPSG:4490', '+proj=longlat +ellps=GRS80 +no_defs');
+            proj4.defs('EPSG:4544', '+proj=tmerc +lat_0=0 +lon_0=120 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs');
+            proj4.defs('EPSG:4545', '+proj=tmerc +lat_0=0 +lon_0=121 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs');
+            proj4.defs('EPSG:4546', '+proj=tmerc +lat_0=0 +lon_0=122 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs');
+            proj4.defs('EPSG:4547', '+proj=tmerc +lat_0=0 +lon_0=123 +k=1 +x_0=500000 +y_0=0 +ellps=GRS80 +units=m +no_defs');
+
+            // Beijing 1954
+            proj4.defs('EPSG:4214', '+proj=longlat +ellps=krass +towgs84=15.8,-154.4,-82.3,0,0,0,0 +no_defs');
+            proj4.defs('EPSG:2437', '+proj=tmerc +lat_0=0 +lon_0=120 +k=1 +x_0=500000 +y_0=0 +ellps=krass +towgs84=15.8,-154.4,-82.3,0,0,0,0 +units=m +no_defs');
+            proj4.defs('EPSG:2438', '+proj=tmerc +lat_0=0 +lon_0=121 +k=1 +x_0=500000 +y_0=0 +ellps=krass +towgs84=15.8,-154.4,-82.3,0,0,0,0 +units=m +no_defs');
+
+            // Xian 1980
+            proj4.defs('EPSG:4480', '+proj=longlat +ellps=IAU76 +towgs84=25,-147,-106,0,0,0,0 +no_defs');
+            proj4.defs('EPSG:2385', '+proj=tmerc +lat_0=0 +lon_0=120 +k=1 +x_0=500000 +y_0=0 +ellps=IAU76 +towgs84=25,-147,-106,0,0,0,0 +units=m +no_defs');
+            proj4.defs('EPSG:2386', '+proj=tmerc +lat_0=0 +lon_0=121 +k=1 +x_0=500000 +y_0=0 +ellps=IAU76 +towgs84=25,-147,-106,0,0,0,0 +units=m +no_defs');
+
+            // UTM zones
+            proj4.defs('EPSG:32650', '+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs');
+            proj4.defs('EPSG:32651', '+proj=utm +zone=51 +datum=WGS84 +units=m +no_defs');
+            proj4.defs('EPSG:32652', '+proj=utm +zone=52 +datum=WGS84 +units=m +no_defs');
+        }
+
+        // 投影信息映射
+        const projectionInfo = {
+            'EPSG:4326': 'WGS84 经纬度: (经度, 纬度)',
+            'EPSG:3857': 'Web Mercator: (X, Y) 米',
+            'EPSG:4490': 'CGCS2000 经纬度: (经度, 纬度)',
+            'EPSG:4544': 'CGCS2000 3度带 120E: (X, Y) 米',
+            'EPSG:4545': 'CGCS2000 3度带 121E: (X, Y) 米',
+            'EPSG:4546': 'CGCS2000 3度带 122E: (X, Y) 米',
+            'EPSG:4547': 'CGCS2000 3度带 123E: (X, Y) 米',
+            'EPSG:4214': 'Beijing 1954 经纬度: (经度, 纬度)',
+            'EPSG:4480': 'Xian 1980 经纬度: (经度, 纬度)',
+            'EPSG:2437': 'Beijing 1954 3度带 120E: (X, Y) 米',
+            'EPSG:2438': 'Beijing 1954 3度带 121E: (X, Y) 米',
+            'EPSG:2385': 'Xian 1980 3度带 120E: (X, Y) 米',
+            'EPSG:2386': 'Xian 1980 3度带 121E: (X, Y) 米',
+            'EPSG:2154': 'Lambert 93 (法国): (X, Y) 米',
+            'EPSG:32650': 'UTM Zone 50N: (Easting, Northing) 米',
+            'EPSG:32651': 'UTM Zone 51N: (Easting, Northing) 米',
+            'EPSG:32652': 'UTM Zone 52N: (Easting, Northing) 米',
+            'EPSG:3395': 'World Mercator: (X, Y) 米',
+            'EPSG:3035': 'LAEA Europe: (X, Y) 米'
+        };
+
+        let conversionHistory = [];
+
+        // 切换源坐标模式
+        function toggleSrcMode(mode) {
+            document.getElementById('srcPresetBtn').classList.toggle('active', mode === 'preset');
+            document.getElementById('srcCustomBtn').classList.toggle('active', mode === 'custom');
+            document.getElementById('srcPresetArea').classList.toggle('hidden', mode === 'custom');
+            document.getElementById('srcCustomArea').classList.toggle('hidden', mode === 'preset');
+        }
+
+        // 切换目标坐标模式
+        function toggleDstMode(mode) {
+            document.getElementById('dstPresetBtn').classList.toggle('active', mode === 'preset');
+            document.getElementById('dstCustomBtn').classList.toggle('active', mode === 'custom');
+            document.getElementById('dstPresetArea').classList.toggle('hidden', mode === 'custom');
+            document.getElementById('dstCustomArea').classList.toggle('hidden', mode === 'preset');
+        }
+
+        // 更新源坐标信息
+        function updateSrcInfo() {
+            const proj = document.getElementById('srcProjection').value;
+            document.getElementById('srcInfo').textContent = projectionInfo[proj] || proj;
+        }
+
+        // 更新目标坐标信息
+        function updateDstInfo() {
+            const proj = document.getElementById('dstProjection').value;
+            document.getElementById('dstInfo').textContent = projectionInfo[proj] || proj;
+        }
+
+        // 获取源坐标定义
+        function getSrcProjection() {
+            if (!document.getElementById('srcCustomArea').classList.contains('hidden')) {
+                const name = document.getElementById('srcCustomName').value.trim() || 'custom-src';
+                const def = document.getElementById('srcCustomDef').value.trim();
+                if (!def) {
+                    throw new Error('请输入自定义投影定义');
+                }
+                proj4.defs(name, def);
+                return name;
+            }
+            return document.getElementById('srcProjection').value;
+        }
+
+        // 获取目标坐标定义
+        function getDstProjection() {
+            if (!document.getElementById('dstCustomArea').classList.contains('hidden')) {
+                const name = document.getElementById('dstCustomName').value.trim() || 'custom-dst';
+                const def = document.getElementById('dstCustomDef').value.trim();
+                if (!def) {
+                    throw new Error('请输入自定义投影定义');
+                }
+                proj4.defs(name, def);
+                return name;
+            }
+            return document.getElementById('dstProjection').value;
+        }
+
+        // 转换坐标
+        function convertCoordinate() {
+            try {
+                const srcProj = getSrcProjection();
+                const dstProj = getDstProjection();
+                const x = parseFloat(document.getElementById('srcX').value);
+                const y = parseFloat(document.getElementById('srcY').value);
+
+                if (isNaN(x) || isNaN(y)) {
+                    throw new Error('请输入有效的坐标值');
+                }
+
+                const result = proj4(srcProj, dstProj, [x, y]);
+                const resultStr = `X: ${result[0].toFixed(4)}, Y: ${result[1].toFixed(4)}`;
+                document.getElementById('resultValue').textContent = resultStr;
+
+                // 添加到历史记录
+                addToHistory(`${srcProj} → ${dstProj}`, `(${x}, ${y})`, resultStr);
+
+            } catch (error) {
+                document.getElementById('resultValue').textContent = '错误: ' + error.message;
+            }
+        }
+
+        // 交换投影
+        function swapProjections() {
+            // 交换下拉选择
+            const srcSelect = document.getElementById('srcProjection');
+            const dstSelect = document.getElementById('dstProjection');
+            const tempValue = srcSelect.value;
+            srcSelect.value = dstSelect.value;
+            dstSelect.value = tempValue;
+
+            // 交换坐标值
+            const srcX = document.getElementById('srcX').value;
+            const srcY = document.getElementById('srcY').value;
+            const resultText = document.getElementById('resultValue').textContent;
+
+            if (resultText && !resultText.includes('错误') && resultText !== '请输入坐标值后点击转换') {
+                const match = resultText.match(/X:\s*([\d.-]+),\s*Y:\s*([\d.-]+)/);
+                if (match) {
+                    document.getElementById('srcX').value = match[1];
+                    document.getElementById('srcY').value = match[2];
+                    document.getElementById('resultValue').textContent = `(${srcX}, ${srcY})`;
+                }
+            }
+
+            updateSrcInfo();
+            updateDstInfo();
+        }
+
+        // 经纬度转地心坐标 (ECEF)
+        function convertToECEF() {
+            const lon = parseFloat(document.getElementById('ecefLon').value) * Math.PI / 180;
+            const lat = parseFloat(document.getElementById('ecefLat').value) * Math.PI / 180;
+            const h = parseFloat(document.getElementById('ecefHeight').value) || 0;
+
+            if (isNaN(lon) || isNaN(lat)) {
+                document.getElementById('ecefResult').textContent = '错误: 请输入有效的经纬度';
+                return;
+            }
+
+            const N = WGS84_A / Math.sqrt(1 - WGS84_E2 * Math.sin(lat) * Math.sin(lat));
+
+            const X = (N + h) * Math.cos(lat) * Math.cos(lon);
+            const Y = (N + h) * Math.cos(lat) * Math.sin(lon);
+            const Z = (N * (1 - WGS84_E2) + h) * Math.sin(lat);
+
+            const result = `X: ${X.toFixed(4)} m, Y: ${Y.toFixed(4)} m, Z: ${Z.toFixed(4)} m`;
+            document.getElementById('ecefResult').textContent = result;
+
+            // 填充到反算输入框
+            document.getElementById('xyzX').value = X.toFixed(4);
+            document.getElementById('xyzY').value = Y.toFixed(4);
+            document.getElementById('xyzZ').value = Z.toFixed(4);
+
+            addToHistory('经纬度 → ECEF', `(${document.getElementById('ecefLon').value}°, ${document.getElementById('ecefLat').value}°, ${h}m)`, result);
+        }
+
+        // 地心坐标转经纬度 (ECEF → LLH)
+        function convertFromECEF() {
+            const X = parseFloat(document.getElementById('xyzX').value);
+            const Y = parseFloat(document.getElementById('xyzY').value);
+            const Z = parseFloat(document.getElementById('xyzZ').value);
+
+            if (isNaN(X) || isNaN(Y) || isNaN(Z)) {
+                document.getElementById('llhResult').textContent = '错误: 请输入有效的 XYZ 坐标';
+                return;
+            }
+
+            const p = Math.sqrt(X * X + Y * Y);
+            const e2 = WGS84_E2;
+            const a = WGS84_A;
+
+            // 初始估计
+            let lat = Math.atan2(Z, p * (1 - e2));
+            let N, lat_new, h;
+
+            // 迭代计算纬度
+            for (let i = 0; i < 10; i++) {
+                N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat));
+                lat_new = Math.atan2(Z + e2 * N * Math.sin(lat), p);
+                if (Math.abs(lat_new - lat) < 1e-12) break;
+                lat = lat_new;
+            }
+
+            const lon = Math.atan2(Y, X);
+            N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat));
+            h = p / Math.cos(lat) - N;
+
+            const lonDeg = lon * 180 / Math.PI;
+            const latDeg = lat * 180 / Math.PI;
+
+            const result = `经度: ${lonDeg.toFixed(8)}°, 纬度: ${latDeg.toFixed(8)}°, 高程: ${h.toFixed(4)} m`;
+            document.getElementById('llhResult').textContent = result;
+
+            // 填充到正算输入框
+            document.getElementById('ecefLon').value = lonDeg.toFixed(8);
+            document.getElementById('ecefLat').value = latDeg.toFixed(8);
+            document.getElementById('ecefHeight').value = h.toFixed(4);
+
+            addToHistory('ECEF → 经纬度', `(${X}m, ${Y}m, ${Z}m)`, result);
+        }
+
+        // 添加到历史记录
+        function addToHistory(type, input, output) {
+            const time = new Date().toLocaleTimeString();
+            conversionHistory.unshift({ time, type, input, output });
+            if (conversionHistory.length > 20) conversionHistory.pop();
+            updateHistoryDisplay();
+        }
+
+        // 更新历史显示
+        function updateHistoryDisplay() {
+            const container = document.getElementById('history');
+            if (conversionHistory.length === 0) {
+                container.innerHTML = '<div class="result-value" style="font-size: 0.9rem; color: #b0bec5;">暂无转换记录</div>';
+                return;
+            }
+
+            let html = '';
+            conversionHistory.forEach(item => {
+                html += `<div style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem;">
+                    <div style="color: #4fc3f7;">[${item.time}] ${item.type}</div>
+                    <div style="color: #b0bec5;">输入: ${item.input}</div>
+                    <div style="color: #fff;">输出: ${item.output}</div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // 清空历史
+        function clearHistory() {
+            conversionHistory = [];
+            updateHistoryDisplay();
+        }
+
+        // 初始化
+        registerProjections();
+        updateSrcInfo();
+        updateDstInfo();
+    </script>
+</body>
+</html>
