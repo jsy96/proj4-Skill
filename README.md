@@ -113,22 +113,65 @@ const crsList = listCRS();
 console.log(crsList.predefined);
 ```
 
-### 3. 作为 Skill 使用
+### 3. 作为 Claude Code Skill 使用
 
-此项目可以集成到 Claude Code 中作为 Skill 使用：
+此项目可以作为 Claude Code 的 Skill 使用。
 
-```json
-{
-  "name": "proj4-coordinate-transform",
-  "description": "Coordinate system transformation using Proj4js",
-  "commands": [
-    "define-crs",
-    "list-crs",
-    "transform",
-    "batch-transform",
-    "transform-china"
-  ]
-}
+#### 安装 Skill
+
+1. 克隆此仓库到本地：
+```bash
+git clone https://github.com/jsy96/proj4-Skill.git
+cd proj4-Skill
+npm install
+```
+
+2. 在 Claude Code 中配置 skill 路径
+
+#### 在 Claude Code 中使用
+
+在对话中直接使用 skill 命令：
+
+```
+# 坐标转换
+请使用 proj4 skill 将坐标 [116.404, 39.915] 从 WGS84 转换为 Web Mercator
+
+# 中国坐标转换
+请使用 proj4 skill 将 GPS 坐标 [116.404, 39.915] 转换为高德地图坐标
+
+# 列出所有坐标系
+请使用 proj4 skill 列出所有可用的坐标系
+
+# 批量转换
+请使用 proj4 skill 批量转换以下坐标: [[116.404, 39.915], [121.473, 31.230]]
+```
+
+#### 可用的 Skill 命令
+
+- `transform` - 坐标系转换
+- `transform-china` - 中国坐标系转换 (WGS84/GCJ02/BD09)
+- `batch-transform` - 批量坐标转换
+- `list-crs` - 列出所有坐标系
+- `define-crs` - 定义自定义坐标系
+- `get-proj4-def` - 获取坐标系定义
+- `inverse-transform` - 获取逆向转换信息
+
+#### 编程方式调用
+
+```javascript
+const skill = require('./skill-handler');
+
+// 转换坐标
+const result = await skill.execute('transform', {
+  from: 'EPSG:4326',
+  to: 'EPSG:3857',
+  coordinates: [116.404, 39.915]
+});
+console.log(result);
+
+// 获取可用命令
+const commands = skill.getCommands();
+console.log(commands);
 ```
 
 ## 支持的坐标系
