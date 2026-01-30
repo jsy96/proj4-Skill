@@ -416,6 +416,270 @@ function transformChina(from, to, coordinates) {
   }
 }
 
+/**
+ * WGS84 Ellipsoid Parameters
+ */
+const WGS84 = {
+  a: 6378137.0,           // Semi-major axis (meters)
+  f: 1 / 298.257223563,   // Flattening
+  e2: 0.00669437999014     // First eccentricity squared
+};
+
+/**
+ * Calculate radius of curvature in prime vertical (N)
+ * @param {number} lat - Latitude in radians
+ * @returns {number} Radius of curvature in meters
+ */
+function calculateRadiusOfCurvature(lat) {
+  const sinLat = Math.sin(lat);
+  return WGS84.a / Math.sqrt(1 - WGS84.e2 * sinLat * sinLat);
+}
+
+/**
+ * Convert degrees to radians
+ * @param {number} degrees - Angle in degrees
+ * @returns {number} Angle in radians
+ */
+function degToRad(degrees) {
+  return degrees * Math.PI / 180.0;
+}
+
+/**
+ * Convert radians to degrees
+ * @param {number} radians - Angle in radians
+ * @returns {number} Angle in degrees
+ */
+function radToDeg(radians) {
+  return radians * 180.0 / Math.PI;
+}
+
+/**
+ * Convert BLH (Latitude, Longitude, Height) to ECEF (X, Y, Z)
+ * Also known as: Geodetic to Earth-Centered Earth-Fixed coordinates
+ *
+ * @param {number} lat - Latitude in degrees
+ * @param {number} lon - Longitude in degrees
+ * @param {number} height - Height above ellipsoid in meters
+ * @returns {object} Object with X, Y, Z coordinates
+ */
+function blhToXYZ(lat, lon, height = 0) {
+  try {
+    const latRad = degToRad(lat);
+    const lonRad = degToRad(lon);
+
+    const N = calculateRadiusOfCurvature(latRad);
+
+    const X = (N + height) * Math.cos(latRad) * Math.cos(lonRad);
+    const Y = (N + height) * Math.cos(latRad) * Math.sin(lonRad);
+    const Z = (N * (1 - WGS84.e2) + height) * Math.sin(latRad);
+
+    return {
+      success: true,
+      input: { lat, lon, height },
+      output: { X, Y, Z },
+      X, Y, Z,
+      units: 'meters'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `BLH to XYZ conversion failed: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Convert ECEF (X, Y, Z) to BLH (Latitude, Longitude, Height)
+ * Also known as: Earth-Centered Earth-Fixed to Geodetic coordinates
+ * Uses Bowring's formula for direct (non-iterative) solution
+ *
+ * @param {number} X - X coordinate in meters
+ * @param {number} Y - Y coordinate in meters
+ * @param {number} Z - Z coordinate in meters
+ * @returns {object} Object with lat, lon, height
+ */
+function xyzToBLH(X, Y, Z) {
+  try {
+    const p = Math.sqrt(X * X + Y * Y); // Distance from Z axis
+
+    // Calculate longitude
+    const lon = radToDeg(Math.atan2(Y, X));
+
+    // Calculate latitude using Bowring's formula
+    const theta = Math.atan2(Z * WGS84.a, p * (1 - WGS84.f) * WGS84.a);
+    const ePrime2 = (WGS84.a * WGS84.a - (WGS84.a * (1 - WGS84.f)) ** 2) / ((WGS84.a * (1 - WGS84.f)) ** 2);
+
+    const lat = radToDeg(Math.atan2(
+      Z + ePrime2 * (WGS84.a * (1 - WGS84.f)) * Math.pow(Math.sin(theta), 3),
+      p - WGS84.e2 * WGS84.a * Math.pow(Math.cos(theta), 3)
+    ));
+
+    // Calculate height
+    const latRad = degToRad(lat);
+    const N = calculateRadiusOfCurvature(latRad);
+    const height = p / Math.cos(latRad) - N;
+
+    return {
+      success: true,
+      input: { X, Y, Z },
+      output: { lat, lon, height },
+      lat,
+      lon,
+      height,
+      units: { lat: 'degrees', lon: 'degrees', height: 'meters' }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `XYZ to BLH conversion failed: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Convert XYZ array [X, Y, Z] to BLH object
+ * @param {Array} xyz - Array of [X, Y, Z] coordinates in meters
+ * @returns {object} BLH coordinates
+ */
+function xyzToBLHArray(xyz) {
+  if (!Array.isArray(xyz) || xyz.length < 3) {
+    return {
+      success: false,
+      error: 'xyzToBLHArray requires an array with at least 3 elements [X, Y, Z]'
+    };
+  }
+  return xyzToBLH(xyz[0], xyz[1], xyz[2]);
+}
+
+/**
+ * Convert BLH object to XYZ array
+ * @param {number} lat - Latitude in degrees
+ * @param {number} lon - Longitude in degrees
+ * @param {number} height - Height in meters (default: 0)
+ * @returns {object} XYZ coordinates
+ */
+function blhToXYZArray(lat, lon, height = 0) {
+  return blhToXYZ(lat, lon, height);
+}
+
+/**
+ * Batch convert multiple BLH coordinates to XYZ
+ * @param {Array} blhArray - Array of {lat, lon, height} objects or [[lat, lon, height], ...]
+ * @returns {object} Batch conversion results
+ */
+function batchBlhToXYZ(blhArray) {
+  try {
+    const results = blhArray.map((item, index) => {
+      let lat, lon, height;
+
+      if (Array.isArray(item)) {
+        [lat, lon, height = 0] = item;
+      } else if (typeof item === 'object') {
+        lat = item.lat;
+        lon = item.lon;
+        height = item.height ?? 0;
+      } else {
+        throw new Error(`Invalid item at index ${index}`);
+      }
+
+      const result = blhToXYZ(lat, lon, height);
+      return {
+        index,
+        input: result.input,
+        output: result.output,
+        X: result.X,
+        Y: result.Y,
+        Z: result.Z
+      };
+    });
+
+    return {
+      success: true,
+      count: results.length,
+      results
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Batch BLH to XYZ failed: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Batch convert multiple XYZ coordinates to BLH
+ * @param {Array} xyzArray - Array of [X, Y, Z] arrays
+ * @returns {object} Batch conversion results
+ */
+function batchXyzToBLH(xyzArray) {
+  try {
+    const results = xyzArray.map((item, index) => {
+      if (!Array.isArray(item) || item.length < 3) {
+        throw new Error(`Invalid item at index ${index}`);
+      }
+
+      const result = xyzToBLH(item[0], item[1], item[2]);
+      return {
+        index,
+        input: result.input,
+        output: result.output,
+        lat: result.lat,
+        lon: result.lon,
+        height: result.height
+      };
+    });
+
+    return {
+      success: true,
+      count: results.length,
+      results
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Batch XYZ to BLH failed: ${error.message}`
+    };
+  }
+}
+
+/**
+ * Get ellipsoid information
+ * @param {string} ellipsoid - Ellipsoid name (default: 'WGS84')
+ * @returns {object} Ellipsoid parameters
+ */
+function getEllipsoidInfo(ellipsoid = 'WGS84') {
+  const ellipsoids = {
+    WGS84: {
+      name: 'WGS84',
+      description: 'World Geodetic System 1984',
+      a: WGS84.a,
+      f: WGS84.f,
+      e2: WGS84.e2,
+      b: WGS84.a * (1 - WGS84.f)
+    },
+    GRS80: {
+      name: 'GRS80',
+      description: 'Geodetic Reference System 1980',
+      a: 6378137.0,
+      f: 1 / 298.257222101,
+      e2: 0.00669438002290
+    },
+    CLARKE1866: {
+      name: 'Clarke 1866',
+      description: 'Clarke Ellipsoid of 1866',
+      a: 6378206.4,
+      f: 1 / 294.9786982,
+      e2: 0.00676865799761
+    }
+  };
+
+  return {
+    success: true,
+    ellipsoid: ellipsoid.toUpperCase(),
+    ...ellipsoids[ellipsoid.toUpperCase()] || ellipsoids.WGS84
+  };
+}
+
 // Export all functions
 module.exports = {
   defineCRS,
@@ -427,8 +691,21 @@ module.exports = {
   transformChina,
   gcj02ToWgs84,
   wgs84ToGcj02,
+  // ECEF/BLH conversion functions
+  blhToXYZ,
+  xyzToBLH,
+  blhToXYZArray,
+  xyzToBLHArray,
+  batchBlhToXYZ,
+  batchXyzToBLH,
+  getEllipsoidInfo,
+  // Utility functions
+  degToRad,
+  radToDeg,
   // Expose proj4 for advanced users
   proj4,
   // Export predefined CRS for reference
-  PREDEFINED_CRS
+  PREDEFINED_CRS,
+  // Export ellipsoid constants
+  WGS84
 };

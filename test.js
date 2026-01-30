@@ -12,7 +12,12 @@ const {
   getInverseTransform,
   transformChina,
   gcj02ToWgs84,
-  wgs84ToGcj02
+  wgs84ToGcj02,
+  blhToXYZ,
+  xyzToBLH,
+  batchBlhToXYZ,
+  batchXyzToBLH,
+  getEllipsoidInfo
 } = require('./index');
 
 // Simple test runner
@@ -168,6 +173,110 @@ test('transform to UTM projection', () => {
 test('transform with China 2000 CRS', () => {
   const result = getProj4Def('EPSG:4490');
   assert(result.success === true, 'should return success');
+});
+
+// Test 16: BLH to XYZ conversion
+test('blhToXYZ converts geodetic to ECEF coordinates', () => {
+  const result = blhToXYZ(39.915, 116.404, 100);
+  assert(result.success === true, 'should return success');
+  assert(typeof result.X === 'number', 'should have X coordinate');
+  assert(typeof result.Y === 'number', 'should have Y coordinate');
+  assert(typeof result.Z === 'number', 'should have Z coordinate');
+  assert(Math.abs(result.X) > 0, 'X should not be zero');
+  assert(Math.abs(result.Y) > 0, 'Y should not be zero');
+  assert(Math.abs(result.Z) > 0, 'Z should not be zero');
+});
+
+// Test 17: XYZ to BLH conversion
+test('xyzToBLH converts ECEF to geodetic coordinates', () => {
+  const xyz = blhToXYZ(39.915, 116.404, 100);
+  const result = xyzToBLH(xyz.X, xyz.Y, xyz.Z);
+  assert(result.success === true, 'should return success');
+  assert(typeof result.lat === 'number', 'should have latitude');
+  assert(typeof result.lon === 'number', 'should have longitude');
+  assert(typeof result.height === 'number', 'should have height');
+  // Round-trip should give approximately original values
+  assert(Math.abs(result.lat - 39.915) < 0.0001, 'latitude should round-trip');
+  assert(Math.abs(result.lon - 116.404) < 0.0001, 'longitude should round-trip');
+  assert(Math.abs(result.height - 100) < 0.1, 'height should round-trip');
+});
+
+// Test 18: BLH to XYZ with zero height
+test('blhToXYZ works with zero height', () => {
+  const result = blhToXYZ(0, 0, 0); // Equator at prime meridian
+  assert(result.success === true, 'should return success');
+  assert(result.X > 6370000 && result.X < 6380000, 'X should be close to Earth radius');
+  assert(Math.abs(result.Y) < 1000, 'Y should be near zero at longitude 0');
+  assert(Math.abs(result.Z) < 1000, 'Z should be near zero at equator');
+});
+
+// Test 19: XYZ to BLH at pole
+test('xyzToBLH works at North Pole', () => {
+  const result = xyzToBLH(0, 0, 6356752.314); // North Pole on WGS84
+  assert(result.success === true, 'should return success');
+  assert(Math.abs(result.lat - 90) < 0.1, 'latitude should be near 90°');
+});
+
+// Test 20: Batch BLH to XYZ
+test('batchBlhToXYZ converts multiple coordinates', () => {
+  const coordinates = [
+    [39.915, 116.404, 100],
+    [31.230, 121.473, 50],
+    [23.129, 113.264, 0]
+  ];
+  const result = batchBlhToXYZ(coordinates);
+  assert(result.success === true, 'should return success');
+  assert(result.count === 3, 'should convert 3 coordinates');
+  assert(Array.isArray(result.results), 'should return results array');
+});
+
+// Test 21: Batch XYZ to BLH
+test('batchXyzToBLH converts multiple coordinates', () => {
+  const xyz1 = blhToXYZ(39.915, 116.404, 100);
+  const xyz2 = blhToXYZ(31.230, 121.473, 50);
+  const coordinates = [
+    [xyz1.X, xyz1.Y, xyz1.Z],
+    [xyz2.X, xyz2.Y, xyz2.Z]
+  ];
+  const result = batchXyzToBLH(coordinates);
+  assert(result.success === true, 'should return success');
+  assert(result.count === 2, 'should convert 2 coordinates');
+});
+
+// Test 22: Get ellipsoid info
+test('getEllipsoidInfo returns WGS84 parameters', () => {
+  const result = getEllipsoidInfo('WGS84');
+  assert(result.success === true, 'should return success');
+  assert(result.name === 'WGS84', 'should have correct name');
+  assert(result.a === 6378137.0, 'should have correct semi-major axis');
+  assert(typeof result.f === 'number', 'should have flattening');
+  assert(typeof result.e2 === 'number', 'should have eccentricity squared');
+});
+
+// Test 23: Degree/radian conversion
+test('degToRad and radToDeg convert correctly', () => {
+  const { degToRad, radToDeg } = require('./index');
+  const degrees = 180;
+  const radians = degToRad(degrees);
+  assert(Math.abs(radians - Math.PI) < 0.0001, '180° should equal π radians');
+  const back = radToDeg(radians);
+  assert(Math.abs(back - degrees) < 0.0001, 'round-trip should preserve value');
+});
+
+// Test 24: BLH to XYZ with negative height
+test('blhToXYZ handles negative height', () => {
+  const result = blhToXYZ(39.915, 116.404, -100);
+  assert(result.success === true, 'should return success');
+  assert(typeof result.X === 'number', 'should have X coordinate');
+});
+
+// Test 25: XYZ to BLH with southern hemisphere
+test('xyzToBLH handles southern hemisphere', () => {
+  const xyz = blhToXYZ(-33.8688, 151.2093, 50); // Sydney
+  const result = xyzToBLH(xyz.X, xyz.Y, xyz.Z);
+  assert(result.success === true, 'should return success');
+  assert(result.lat < 0, 'latitude should be negative (southern hemisphere)');
+  assert(Math.abs(result.lat + 33.8688) < 0.0001, 'latitude should round-trip');
 });
 
 // Summary

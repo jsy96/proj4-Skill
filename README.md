@@ -1,6 +1,6 @@
 # Proj4 Coordinate Transformation Skill
 
-一个基于 Proj4js 的坐标系定义和转换 Skill，支持多种坐标系之间的相互转换，包括中国常用的坐标系（WGS84、GCJ-02、BD-09）。
+一个基于 Proj4js 的坐标系定义和转换 Skill，支持多种坐标系之间的相互转换，包括中国常用的坐标系（WGS84、GCJ-02、BD-09），以及地心直角坐标系（ECEF XYZ）与大地坐标系（BLH）的相互转换。
 
 ## 功能特性
 
@@ -15,6 +15,12 @@
   - GCJ-02 - 火星坐标系（高德、腾讯地图）
   - BD-09 - 百度坐标系
   - CGCS2000 (EPSG:4490) - 中国2000坐标系
+
+- 🌐 **地心直角坐标系 (ECEF XYZ)**
+  - BLH (经纬高) → XYZ (地心直角坐标)
+  - XYZ (地心直角坐标) → BLH (经纬高)
+  - 基于 WGS84 椭球模型
+  - 支持批量转换
 
 - 🔧 **自定义坐标系**
   - 支持定义自定义坐标系
@@ -62,6 +68,28 @@ node cli.js china WGS84 GCJ02 "116.404,39.915"
 node cli.js china GCJ02 BD09 "116.404,39.915"
 ```
 
+#### 地心直角坐标转换 (ECEF XYZ)
+
+将大地坐标 (BLH) 转换为地心直角坐标 (XYZ):
+
+```bash
+node cli.js blh-to-xyz 39.915 116.404 100
+# 输出: X=-2178505.3710, Y=4387801.4334, Z=4070815.4087
+```
+
+将地心直角坐标 (XYZ) 转换为大地坐标 (BLH):
+
+```bash
+node cli.js xyz-to-blh -2178505.3710 4387801.4334 4070815.4087
+# 输出: lat=39.91500000°, lon=116.40400000°, height=99.9999m
+```
+
+查看椭球参数信息:
+
+```bash
+node cli.js ellipsoid WGS84
+```
+
 #### 批量转换
 
 ```bash
@@ -93,6 +121,9 @@ node cli.js examples
 const {
   transform,
   transformChina,
+  blhToXYZ,
+  xyzToBLH,
+  batchBlhToXYZ,
   defineCRS,
   listCRS
 } = require('./index');
@@ -104,6 +135,25 @@ console.log(result1.output); // [12957296.19, 4835470.39]
 // 中国坐标转换 - WGS84 转 GCJ-02
 const result2 = transformChina('WGS84', 'GCJ02', [116.404, 39.915]);
 console.log(result2.output); // [116.410, 39.920]
+
+// BLH 转 XYZ - 大地坐标转地心直角坐标
+const result3 = blhToXYZ(39.915, 116.404, 100);
+console.log(`X=${result3.X}, Y=${result3.Y}, Z=${result3.Z}`);
+// X=-2178505.3710, Y=4387801.4334, Z=4070815.4087
+
+// XYZ 转 BLH - 地心直角坐标转大地坐标
+const result4 = xyzToBLH(result3.X, result3.Y, result3.Z);
+console.log(`lat=${result4.lat}, lon=${result4.lon}, height=${result4.height}`);
+// lat=39.915, lon=116.404, height=100
+
+// 批量 BLH 转 XYZ
+const coordinates = [
+  [39.915, 116.404, 100],
+  [31.230, 121.473, 50],
+  [23.129, 113.264, 0]
+];
+const result5 = batchBlhToXYZ(coordinates);
+console.log(result5.results);
 
 // 定义自定义坐标系
 defineCRS('LOCAL', '+proj=utm +zone=50 +datum=WGS84 +units=m +no_defs');
@@ -139,6 +189,9 @@ npm install
 # 中国坐标转换
 请使用 proj4 skill 将 GPS 坐标 [116.404, 39.915] 转换为高德地图坐标
 
+# 地心直角坐标转换
+请使用 proj4 skill 将大地坐标 (纬度=39.915, 经度=116.404, 高度=100) 转换为地心直角坐标 XYZ
+
 # 列出所有坐标系
 请使用 proj4 skill 列出所有可用的坐标系
 
@@ -150,11 +203,16 @@ npm install
 
 - `transform` - 坐标系转换
 - `transform-china` - 中国坐标系转换 (WGS84/GCJ02/BD09)
+- `blh-to-xyz` - 大地坐标转地心直角坐标
+- `xyz-to-blh` - 地心直角坐标转大地坐标
+- `batch-blh-to-xyz` - 批量大地坐标转地心直角坐标
+- `batch-xyz-to-blh` - 批量地心直角坐标转大地坐标
 - `batch-transform` - 批量坐标转换
 - `list-crs` - 列出所有坐标系
 - `define-crs` - 定义自定义坐标系
 - `get-proj4-def` - 获取坐标系定义
 - `inverse-transform` - 获取逆向转换信息
+- `ellipsoid-info` - 获取椭球参数
 
 #### 编程方式调用
 
@@ -168,6 +226,14 @@ const result = await skill.execute('transform', {
   coordinates: [116.404, 39.915]
 });
 console.log(result);
+
+// BLH 转 XYZ
+const result2 = await skill.execute('blh-to-xyz', {
+  lat: 39.915,
+  lon: 116.404,
+  height: 100
+});
+console.log(result2);
 
 // 获取可用命令
 const commands = skill.getCommands();

@@ -12,7 +12,12 @@ const {
   defineCRS,
   listCRS,
   getProj4Def,
-  getInverseTransform
+  getInverseTransform,
+  blhToXYZ,
+  xyzToBLH,
+  batchBlhToXYZ,
+  batchXyzToBLH,
+  getEllipsoidInfo
 } = require('./index');
 
 /**
@@ -102,8 +107,52 @@ async function handleCommand(command, args) {
         break;
       }
 
+      case 'blh-to-xyz':
+      case 'blh-to-ecef': {
+        const { lat, lon, height = 0 } = args;
+        result.data = blhToXYZ(parseFloat(lat), parseFloat(lon), parseFloat(height));
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
+      case 'xyz-to-blh':
+      case 'ecef-to-blh': {
+        const { X, Y, Z } = args;
+        result.data = xyzToBLH(parseFloat(X), parseFloat(Y), parseFloat(Z));
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
+      case 'batch-blh-to-xyz':
+      case 'batch-blh-to-ecef': {
+        const { coordinates } = args;
+        result.data = batchBlhToXYZ(coordinates);
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
+      case 'batch-xyz-to-blh':
+      case 'batch-ecef-to-blh': {
+        const { coordinates } = args;
+        result.data = batchXyzToBLH(coordinates);
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
+      case 'ellipsoid-info': {
+        const { ellipsoid = 'WGS84' } = args;
+        result.data = getEllipsoidInfo(ellipsoid);
+        result.success = result.data.success;
+        if (!result.success) result.error = result.data.error;
+        break;
+      }
+
       default:
-        result.error = `Unknown command: ${command}. Available commands: transform, transform-china, batch-transform, list-crs, define-crs, get-proj4-def, inverse-transform`;
+        result.error = `Unknown command: ${command}. Available commands: transform, transform-china, batch-transform, list-crs, define-crs, get-proj4-def, inverse-transform, blh-to-xyz, xyz-to-blh, ellipsoid-info`;
     }
   } catch (error) {
     result.error = error.message;
@@ -171,7 +220,12 @@ module.exports = {
       { name: 'list-crs', description: 'List all available coordinate systems' },
       { name: 'define-crs', description: 'Define a custom CRS' },
       { name: 'get-proj4-def', description: 'Get CRS definition' },
-      { name: 'inverse-transform', description: 'Get inverse transformation info' }
+      { name: 'inverse-transform', description: 'Get inverse transformation info' },
+      { name: 'blh-to-xyz', description: 'Convert BLH (lat,lon,height) to ECEF XYZ' },
+      { name: 'xyz-to-blh', description: 'Convert ECEF XYZ to BLH (lat,lon,height)' },
+      { name: 'batch-blh-to-xyz', description: 'Batch convert BLH to ECEF XYZ' },
+      { name: 'batch-xyz-to-blh', description: 'Batch convert ECEF XYZ to BLH' },
+      { name: 'ellipsoid-info', description: 'Get ellipsoid parameters' }
     ];
   },
 
@@ -202,6 +256,11 @@ if (require.main === module) {
     console.log('  define-crs <name> <proj4def>');
     console.log('  get-proj4-def <crs>');
     console.log('  inverse-transform <from> <to>');
+    console.log('  blh-to-xyz <lat> <lon> [height]');
+    console.log('  xyz-to-blh <X> <Y> <Z>');
+    console.log('  batch-blh-to-xyz <coordinates>');
+    console.log('  batch-xyz-to-blh <coordinates>');
+    console.log('  ellipsoid-info [ellipsoid]');
   } else {
     const command = args[0];
     const params = {};

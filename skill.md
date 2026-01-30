@@ -55,6 +55,94 @@ Transform multiple coordinates.
 batch-transform EPSG:4326 EPSG:3857 [[116.404, 39.915], [121.473, 31.230]]
 ```
 
+### `blh-to-xyz <lat> <lon> [height]`
+
+Convert geodetic coordinates (BLH) to Earth-Centered Earth-Fixed (ECEF) XYZ coordinates.
+
+**Parameters:**
+- `lat` - Latitude in degrees
+- `lon` - Longitude in degrees
+- `height` - Height above ellipsoid in meters (default: 0)
+
+**Examples:**
+```
+blh-to-xyz 39.915 116.404 100
+```
+
+**Returns:**
+```javascript
+{
+  success: true,
+  input: { lat: 39.915, lon: 116.404, height: 100 },
+  output: { X: -2178505.3710, Y: 4387801.4334, Z: 4070815.4087 },
+  X: -2178505.3710,
+  Y: 4387801.4334,
+  Z: 4070815.4087
+}
+```
+
+### `xyz-to-blh <X> <Y> <Z>`
+
+Convert Earth-Centered Earth-Fixed (ECEF) XYZ coordinates to geodetic coordinates (BLH).
+
+**Parameters:**
+- `X` - X coordinate in meters
+- `Y` - Y coordinate in meters
+- `Z` - Z coordinate in meters
+
+**Examples:**
+```
+xyz-to-blh -2178505.3710 4387801.4334 4070815.4087
+```
+
+**Returns:**
+```javascript
+{
+  success: true,
+  input: { X: -2178505.3710, Y: 4387801.4334, Z: 4070815.4087 },
+  output: { lat: 39.915, lon: 116.404, height: 100 },
+  lat: 39.915,
+  lon: 116.404,
+  height: 100
+}
+```
+
+### `batch-blh-to-xyz <coordinates>`
+
+Batch convert multiple BLH coordinates to XYZ.
+
+**Parameters:**
+- `coordinates` - Array of [[lat, lon, height], ...]
+
+**Examples:**
+```
+batch-blh-to-xyz [[39.915, 116.404, 100], [31.230, 121.473, 50]]
+```
+
+### `batch-xyz-to-blh <coordinates>`
+
+Batch convert multiple XYZ coordinates to BLH.
+
+**Parameters:**
+- `coordinates` - Array of [[X, Y, Z], ...]
+
+**Examples:**
+```
+batch-xyz-to-blh [[-2178505.3710, 4387801.4334, 4070815.4087], [...]]
+```
+
+### `ellipsoid-info [name]`
+
+Get ellipsoid parameters (default: WGS84).
+
+**Parameters:**
+- `name` - Ellipsoid name (default: 'WGS84')
+
+**Examples:**
+```
+ellipsoid-info WGS84
+```
+
 ### `list-crs`
 
 List all available predefined coordinate reference systems.
